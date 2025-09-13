@@ -1,0 +1,4 @@
+logs/
+server/wire_gen.go
+api-gin.exe
+.idea
