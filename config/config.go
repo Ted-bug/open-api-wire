@@ -2,6 +2,7 @@ package config
 
 import (
 	"api-gin/infra/log"
+	"api-gin/infra/redis"
 	"api-gin/repo"
 	"github.com/spf13/viper"
 )
@@ -13,13 +14,7 @@ type Config struct {
 	Mode  string           `mapstructure:"mode"`
 	Log   log.Config       `mapstructure:"log"`
 	MySQL repo.MysqlConfig `mapstructure:"mysql"`
-	Redis RedisConfig      `mapstructure:"redis"`
-}
-
-type RedisConfig struct {
-	Addr     string `mapstructure:"addr"`
-	Password string `mapstructure:"password"`
-	DB       int    `mapstructure:"db"`
+	Redis redis.Config     `mapstructure:"redis"`
 }
 
 func NewConfig() (*Config, error) {
@@ -53,6 +48,6 @@ func GetMySQLConfig(c *Config) repo.MysqlConfig {
 	return c.MySQL
 }
 
-func GetRedisConfig(c *Config) RedisConfig {
+func GetRedisConfig(c *Config) redis.Config {
 	return c.Redis
 }
