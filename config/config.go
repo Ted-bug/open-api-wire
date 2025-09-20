@@ -1,38 +1,19 @@
 package config
 
 import (
+	"api-gin/infra/log"
+	"api-gin/repo"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Name  string       `mapstructure:"name"`
-	Host  string       `mapstructure:"host"`
-	Port  int          `mapstructure:"port"`
-	Mode  string       `mapstructure:"mode"`
-	Log   LogrusConfig `mapstructure:"log"`
-	MySQL MySQLConfig  `mapstructure:"mysql"`
-	Redis RedisConfig  `mapstructure:"redis"`
-}
-
-type LogrusConfig struct {
-	Level      string `mapstructure:"level"`  // trace, debug, info, warn, error, fatal, panic
-	Format     string `mapstructure:"format"` // text, json
-	Mode       string `mapstructure:"output"` // command,file
-	Path       string `mapstructure:"path"`
-	FileName   string `mapstructure:"filename"`
-	MaxAge     int    `mapstructure:"max_age"`     // 保留天数，单位天
-	MaxSize    int    `mapstructure:"max_size"`    // 保留日志文件大小，单位MB
-	MaxBackups uint   `mapstructure:"max_backups"` // 保留份数，单位个
-}
-
-type MySQLConfig struct {
-	Master          []string `mapstructure:"master"`
-	Slave           []string `mapstructure:"slave"`
-	Log             string   `mapstructure:"log"` // info, warn, error
-	MaxIdleConns    int      `mapstructure:"max_idle_conns"`
-	MaxOpenConns    int      `mapstructure:"max_open_conns"`
-	ConnMaxLifetime int      `mapstructure:"conn_max_lifetime"`  // 单位 秒
-	ConnMaxIdleTime int      `mapstructure:"conn_max_idle_time"` // 单位 秒
+	Name  string           `mapstructure:"name"`
+	Host  string           `mapstructure:"host"`
+	Port  int              `mapstructure:"port"`
+	Mode  string           `mapstructure:"mode"`
+	Log   log.Config       `mapstructure:"log"`
+	MySQL repo.MysqlConfig `mapstructure:"mysql"`
+	Redis RedisConfig      `mapstructure:"redis"`
 }
 
 type RedisConfig struct {
@@ -62,4 +43,16 @@ func NewConfig() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func GetLogConfig(c *Config) log.Config {
+	return c.Log
+}
+
+func GetMySQLConfig(c *Config) repo.MysqlConfig {
+	return c.MySQL
+}
+
+func GetRedisConfig(c *Config) RedisConfig {
+	return c.Redis
 }

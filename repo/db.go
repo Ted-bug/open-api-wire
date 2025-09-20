@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"api-gin/config"
 	"fmt"
 	"time"
 
@@ -11,16 +10,22 @@ import (
 	"gorm.io/plugin/dbresolver"
 )
 
-func NewDB(conf *config.Config) (*gorm.DB, error) {
-	if conf == nil {
-		return nil, fmt.Errorf("no config")
-	}
-	mysqlConfig := conf.MySQL
-	if len(mysqlConfig.Master) == 0 || len(mysqlConfig.Slave) == 0 {
+type MysqlConfig struct {
+	Master          []string `mapstructure:"master"`
+	Slave           []string `mapstructure:"slave"`
+	Log             string   `mapstructure:"log"` // info, warn, error
+	MaxIdleConns    int      `mapstructure:"max_idle_conns"`
+	MaxOpenConns    int      `mapstructure:"max_open_conns"`
+	ConnMaxLifetime int      `mapstructure:"conn_max_lifetime"`  // 单位 秒
+	ConnMaxIdleTime int      `mapstructure:"conn_max_idle_time"` // 单位 秒
+}
+
+func NewDB(c MysqlConfig) (*gorm.DB, error) {
+	if len(c.Master) == 0 || len(c.Slave) == 0 {
 		return nil, fmt.Errorf("no mysql master or slave config")
 	}
 	logLevel := logger.Silent
-	switch mysqlConfig.Log {
+	switch c.Log {
 	case "info":
 		logLevel = logger.Info
 	case "warn":
@@ -30,7 +35,7 @@ func NewDB(conf *config.Config) (*gorm.DB, error) {
 	}
 
 	d, err := gorm.Open(mysql.New(mysql.Config{
-		DSN: mysqlConfig.Master[0],
+		DSN: c.Master[0],
 	}), &gorm.Config{
 		Logger: logger.Default.LogMode(logLevel),
 	})
@@ -39,7 +44,7 @@ func NewDB(conf *config.Config) (*gorm.DB, error) {
 	}
 	// 主库
 	sources := make([]gorm.Dialector, 0)
-	for _, s := range mysqlConfig.Master {
+	for _, s := range c.Master {
 		sources = append(sources, mysql.New(mysql.Config{
 			DSN: s,
 		}))
@@ -47,7 +52,7 @@ func NewDB(conf *config.Config) (*gorm.DB, error) {
 
 	// 从库
 	replicas := make([]gorm.Dialector, 0)
-	for _, s := range mysqlConfig.Slave {
+	for _, s := range c.Slave {
 		cfg := mysql.Config{
 			DSN: s,
 		}
@@ -61,10 +66,10 @@ func NewDB(conf *config.Config) (*gorm.DB, error) {
 			Policy:            dbresolver.RandomPolicy{},
 			TraceResolverMode: true, // 是否在日志中输出 对应的主从信息
 		}).
-			SetMaxIdleConns(mysqlConfig.MaxIdleConns).
-			SetMaxOpenConns(mysqlConfig.MaxOpenConns).
-			SetConnMaxIdleTime(time.Duration(mysqlConfig.ConnMaxIdleTime) * time.Second).
-			SetConnMaxLifetime(time.Duration(mysqlConfig.ConnMaxLifetime) * time.Second),
+			SetMaxIdleConns(c.MaxIdleConns).
+			SetMaxOpenConns(c.MaxOpenConns).
+			SetConnMaxIdleTime(time.Duration(c.ConnMaxIdleTime) * time.Second).
+			SetConnMaxLifetime(time.Duration(c.ConnMaxLifetime) * time.Second),
 	)
 	if err != nil {
 		return nil, err

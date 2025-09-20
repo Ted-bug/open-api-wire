@@ -31,3 +31,15 @@
 ## 3 配置
 - mysql：默认使用读写分离配置。
 - config.yaml：可放于workpwd，或workpwd/config/config.yaml。
+
+## 4 功能特性
+- [x] logrous+file-rotatelogs
+  - [x] traceId、spanId
+  - [x] caller信息
+  - [x] 按日分表、文件留存时间
+  - [x] 支持console/file输出切换
+- [x] gorm
+  - [x] 读写分离
+  - [x] 按日分表、按mode分表
+- [x] redis
+- [x] wire

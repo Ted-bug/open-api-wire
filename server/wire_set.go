@@ -12,6 +12,9 @@ import (
 var (
 	baseSet = wire.NewSet(
 		config.NewConfig,
+		config.GetMySQLConfig,
+		config.GetLogConfig,
+		config.GetRedisConfig,
 		log.NewLogger,
 	)
 	repoSet = wire.NewSet(

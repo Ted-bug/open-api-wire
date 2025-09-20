@@ -2,6 +2,7 @@ name: "myapp"
 host: "localhost"
 port: 8080
 log:
+  srv_name: "myapp"
   level: "info"
   format: "json"
   output: "file"
@@ -9,7 +10,6 @@ log:
   filename: "myapp"
   max_age: 7
   max_size: 10
-  max_backups: 5
 
 mysql:
   master:

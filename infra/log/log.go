@@ -1,7 +1,6 @@
 package log
 
 import (
-	"api-gin/config"
 	"context"
 	"fmt"
 	"github.com/google/uuid"
@@ -9,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"io"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -16,23 +16,34 @@ import (
 type Logger struct {
 	*logrus.Entry
 
-	mu          sync.Mutex
-	lastTraceId string
-	lastSpan    uint
+	mu          sync.Mutex // 保证顺序性
+	lastTraceId string     // 多端同一次请求
+	lastSpan    uint       // 单次请求的调用链
+
+	skipCall int // 找到业务调用者所需的层级
+}
+
+type Config struct {
+	SrvName  string `mapstructure:"srv_name"` // 服务名
+	Level    string `mapstructure:"level"`    // trace, debug, info, warn, error, fatal, panic
+	Format   string `mapstructure:"format"`   // text, json
+	Mode     string `mapstructure:"output"`   // command,file
+	Path     string `mapstructure:"path"`
+	FileName string `mapstructure:"filename"`
+	MaxAge   int    `mapstructure:"max_age"`   // 保留天数，单位天
+	MaxSize  int    `mapstructure:"max_size"`  // 保留日志文件大小，单位MB
+	SkipCall int    `mapstructure:"skip_call"` // 自定义的caller层级
+	//MaxBackups uint   `mapstructure:"max_backups"` // 保留份数，单位个，暂时不启用，与max_age冲突
 }
 
 // NewLogger 根据配置创建一个新的Logger实例
-func NewLogger(config *config.Config) (*Logger, error) {
-	if config == nil {
-		return nil, fmt.Errorf("[NewLogger] 配置不能为空")
-	}
-	logConfig := config.Log
+func NewLogger(c Config) (*Logger, error) {
 	logger := logrus.New()
 
 	// 设置日志级别
-	level, err := logrus.ParseLevel(logConfig.Level)
+	level, err := logrus.ParseLevel(c.Level)
 	if err != nil {
-		return nil, fmt.Errorf("无效的日志级别: %v", logConfig.Level)
+		return nil, fmt.Errorf("无效的日志级别: %v", c.Level)
 	}
 	logger.SetLevel(level)
 
@@ -40,7 +51,7 @@ func NewLogger(config *config.Config) (*Logger, error) {
 	logrus.SetFormatter(&logrus.TextFormatter{
 		TimestampFormat: time.RFC3339,
 	})
-	if logConfig.Format == "json" {
+	if c.Format == "json" {
 		logger.SetFormatter(&logrus.JSONFormatter{
 			TimestampFormat: time.RFC3339,
 		})
@@ -48,16 +59,16 @@ func NewLogger(config *config.Config) (*Logger, error) {
 
 	// 设置日志输出位置
 	var output io.Writer
-	switch logConfig.Mode {
+	switch c.Mode {
 	case "command":
 		output = os.Stdout
 	case "file":
 		// 按日期切割
-		fileName := fmt.Sprintf("%s/%s_output.", logConfig.Path, logConfig.FileName) + "%Y%m%d"
+		fileName := fmt.Sprintf("%s/%s_output.", c.Path, c.FileName) + "%Y%m%d"
 		output, err = rotatelogs.New(fileName,
-			rotatelogs.WithMaxAge(time.Duration(logConfig.MaxAge)*24*time.Hour),
-			rotatelogs.WithRotationSize(int64(logConfig.MaxSize)*1024*1024),
-			//rotatelogs.WithRotationCount(logConfig.MaxBackups), // MaxAge只能留一个
+			rotatelogs.WithMaxAge(time.Duration(c.MaxAge)*24*time.Hour),
+			rotatelogs.WithRotationSize(int64(c.MaxSize)*1024*1024),
+			//rotatelogs.WithRotationCount(c.MaxBackups), // MaxAge只能留一个
 		)
 		if err != nil {
 			return nil, fmt.Errorf("初始化日志写入器错误：%v", err)
@@ -67,7 +78,7 @@ func NewLogger(config *config.Config) (*Logger, error) {
 	}
 	logger.SetOutput(output)
 	// TODO 自定义hook
-	e := &Logger{Entry: logger.WithField("app", config.Name)}
+	e := &Logger{Entry: logger.WithField("app", c.SrvName), skipCall: 3}
 
 	return e, nil
 }
@@ -104,7 +115,23 @@ func (l *Logger) Trace(ctx context.Context) logrus.Fields {
 		l.lastSpan = 0
 	}
 	l.lastSpan++
-	return logrus.Fields{"trace_id": nowTraceIdStr, "span": l.lastSpan}
+	return logrus.Fields{"trace_id": nowTraceIdStr, "span": l.lastSpan, "caller": getCaller(l.skipCall)}
+}
+
+// getCaller 获取调用者信息
+func getCaller(skip int) string {
+	_, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return ""
+	}
+	// 提取文件名
+	for i := len(file) - 1; i >= 0; i-- {
+		if file[i] == '/' {
+			file = file[i+1:]
+			break
+		}
+	}
+	return fmt.Sprintf("%v: %v", file, line)
 }
 
 func (l *Logger) Debug(ctx context.Context, args ...any) {
